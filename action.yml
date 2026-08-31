@@ -1,0 +1,56 @@
+name: agent
+description: |
+  AI agent for GitHub issues. Triggered by labels (ai-process, ai-triage, ai-summarize).
+  Calls x ai with issue context, posts reply as comment, adds result label.
+  Pure shell. Concurrency-safe: single in-flight + single pending (queue: single default).
+
+inputs:
+  task:
+    description: |
+      Task to run. One of:
+      - triage: read issue, suggest labels and priority
+      - summarize: condense issue + comments into summary
+      - reply: free-form response (uses $INPUT_PROMPT)
+      - scan: scan all ai-pending issues, process each (default behavior in scan mode)
+    required: false
+    default: 'reply'
+  prompt:
+    description: |
+      Free-form prompt (only used when task=reply).
+      Receives ISSUE_NUM, ISSUE_TITLE, ISSUE_BODY, ISSUE_LABELS as env.
+    required: false
+  pending-label:
+    description: Label marking issues to process.
+    required: false
+    default: 'ai-process'
+  done-label:
+    description: Label added after successful processing.
+    required: false
+    default: 'ai-done'
+  model:
+    description: Model to use (e.g. minimax, openai:gpt-4).
+    required: false
+    default: 'minimax'
+
+runs:
+  using: composite
+  steps:
+    - name: run agent
+      shell: bash
+      env:
+        INPUT_TASK: ${{ inputs.task }}
+        INPUT_PROMPT: ${{ inputs.prompt }}
+        INPUT_PENDING_LABEL: ${{ inputs.pending-label }}
+        INPUT_DONE_LABEL: ${{ inputs.done-label }}
+        INPUT_MODEL: ${{ inputs.model }}
+        ISSUE_NUM: ${{ github.event.issue.number }}
+        ISSUE_TITLE: ${{ github.event.issue.title }}
+        ISSUE_BODY: ${{ github.event.issue.body }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        if command -v cygpath >/dev/null 2>&1; then
+          ACTION_PATH=$(cygpath -u "$GITHUB_ACTION_PATH")
+        else
+          ACTION_PATH="$GITHUB_ACTION_PATH"
+        fi
+        bash "$ACTION_PATH/lib/agent.sh"

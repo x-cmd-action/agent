@@ -1,0 +1,75 @@
+name: issue-ailabel
+
+# Trigger: when an issue gets the `ai-process` label added.
+# Concurrency: single in-flight + single pending (queue: single default).
+# The agent script itself does dedupe via the done-label.
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+
+concurrency:
+  group: ai-bot
+  cancel-in-progress: false
+  # queue omitted → defaults to 'single' (last pending wins)
+
+jobs:
+  process:
+    # Only run when the label added is ai-process (or manual dispatch).
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issues' && github.event.label.name == 'ai-process')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: checkout agent repo (provides lib/agent.sh)
+        uses: actions/checkout@v4
+
+      - name: install x-cmd
+        shell: bash
+        run: |
+          # Use x-cmd's one-line installer.
+          # Already installed on most runner images; fall back to install.
+          if [ -f "$HOME/.x-cmd.root/X" ]; then
+            echo "x-cmd already installed"
+          else
+            echo "Installing x-cmd..."
+            bash -c "$(curl -fsSL https://get.x-cmd.com)" 2>&1 | tail -5
+          fi
+          ___x_cmd_CLAUDECODE_READY=1 . "$HOME/.x-cmd.root/X"
+          which x || { echo "::error::x not found"; exit 1; }
+          x --version
+
+      - name: configure api key
+        if: env.MINIMAX_TOKEN != ''
+        shell: bash
+        env:
+          MINIMAX_TOKEN: ${{ secrets.MINIMAX_TOKEN }}
+        run: |
+          ___x_cmd_CLAUDECODE_READY=1 . "$HOME/.x-cmd.root/X"
+          x minimax --cfg apikey="$MINIMAX_TOKEN"
+
+      - name: run agent (issue context → AI → comment + done-label)
+        shell: bash
+        env:
+          MINIMAX_TOKEN: ${{ secrets.MINIMAX_TOKEN }}
+          INPUT_TASK: triage
+          INPUT_PENDING_LABEL: ai-process
+          INPUT_DONE_LABEL: ai-done
+          INPUT_MODEL: minimax
+          ISSUE_NUM: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ___x_cmd_CLAUDECODE_READY=1 . "$HOME/.x-cmd.root/X"
+          # Windows path safety (in case of future Windows runner support)
+          if command -v cygpath >/dev/null 2>&1; then
+            ACTION_PATH=$(cygpath -u "$GITHUB_ACTION_PATH")
+          else
+            ACTION_PATH="$GITHUB_ACTION_PATH"
+          fi
+          bash "$ACTION_PATH/lib/agent.sh"
