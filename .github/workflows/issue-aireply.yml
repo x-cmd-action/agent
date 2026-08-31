@@ -40,9 +40,10 @@ jobs:
           INPUT_REACTION: 'eyes'
           INPUT_COMMENT: '👀'
         run: |
+          # Use GITHUB_WORKSPACE (where checkout put the repo).
           if command -v cygpath >/dev/null 2>&1; then
-            ACTION_PATH=$(cygpath -u "$GITHUB_ACTION_PATH")
+            WORKSPACE=$(cygpath -u "$GITHUB_WORKSPACE")
           else
-            ACTION_PATH="$GITHUB_ACTION_PATH"
+            WORKSPACE="$GITHUB_WORKSPACE"
           fi
-          bash "$ACTION_PATH/lib/aireply.sh"
+          bash "$WORKSPACE/lib/aireply.sh"
