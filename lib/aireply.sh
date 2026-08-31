@@ -16,12 +16,14 @@ SHOULD_TRIGGER=false
 
 case "${GITHUB_EVENT_NAME:-}" in
   issue_comment)
-    if printf '%s' "${COMMENT_BODY:-}" | grep -qF "$INPUT_TRIGGER"; then
+    # Match @x followed by non-word char (space, punctuation, end-of-string)
+    # so @x-cmd / @xray / etc. don't trigger.
+    if printf '%s' "${COMMENT_BODY:-}" | grep -qE "(^|[^a-zA-Z0-9_-])@x($|[^a-zA-Z0-9_-])"; then
       SHOULD_TRIGGER=true
     fi
     ;;
   issues)
-    if printf '%s' "${ISSUE_BODY:-}" | grep -qF "$INPUT_TRIGGER"; then
+    if printf '%s' "${ISSUE_BODY:-}" | grep -qE "(^|[^a-zA-Z0-9_-])@x($|[^a-zA-Z0-9_-])"; then
       SHOULD_TRIGGER=true
     fi
     ;;
