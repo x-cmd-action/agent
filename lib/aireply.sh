@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # x-cmd-action/agent — issue-aireply
 # Triggers when an issue/comment mentions @x (configurable).
-# Dedupe: if target already has the configured reaction, skip.
-# Otherwise: add reaction + post a reply comment.
+# Dedupe: at issue level — if issue (not comment) already has the
+# configured reaction, skip. Otherwise: add reaction + reply.
 
 set -euo errexit
 
@@ -28,44 +28,33 @@ case "${GITHUB_EVENT_NAME:-}" in
 esac
 
 if [ "$SHOULD_TRIGGER" = false ]; then
-  echo "aireply: trigger '$INPUT_TRIGGER' not found in event, skipping"
+  echo "aireply: trigger '$INPUT_TRIGGER' not found, skipping"
   exit 0
 fi
 
 echo "aireply: triggered on $GITHUB_EVENT_NAME for issue #$ISSUE_NUM"
 
-# ── 2. Decide target: comment vs issue ──
-REACTION_PATH="repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUM/reactions"
+# ── 2. Dedupe at issue level ──
+ISSUE_REACTIONS=$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUM/reactions" 2>/dev/null || echo "[]")
+EXISTING_COUNT=$(printf '%s' "$ISSUE_REACTIONS" | jq --arg r "$INPUT_REACTION" '[.[] | select(.content == $r)] | length' 2>/dev/null || echo 0)
 
-if [ -n "${COMMENT_ID:-}" ] && [ "${GITHUB_EVENT_NAME}" = "issue_comment" ]; then
-  REACTION_PATH="repos/$GITHUB_REPOSITORY/issues/comments/$COMMENT_ID/reactions"
-  TARGET_DESC="comment #$COMMENT_ID"
-else
-  TARGET_DESC="issue #$ISSUE_NUM"
-fi
-
-echo "aireply: target=$TARGET_DESC"
-
-# ── 3. Check existing reactions ──
-EXISTING=$(gh api "$REACTION_PATH" --jq '[.[] | select(.content=="'"$INPUT_REACTION"'")] | length' 2>/dev/null || echo 0)
-
-if [ "${EXISTING:-0}" -gt 0 ]; then
-  echo "aireply: already has :$INPUT_REACTION: reaction (count=$EXISTING) — skipping"
+if [ "${EXISTING_COUNT:-0}" -gt 0 ]; then
+  echo "aireply: issue #$ISSUE_NUM already has :$INPUT_REACTION: reaction (count=$EXISTING_COUNT) — skipping"
   exit 0
 fi
 
-# ── 4. Add reaction ──
-gh api -X POST "$REACTION_PATH" \
+# ── 3. Add reaction on issue (not on individual comment) ──
+gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$ISSUE_NUM/reactions" \
   -f content="$INPUT_REACTION" 2>/dev/null && \
-  echo "aireply: added :$INPUT_REACTION: reaction" || \
+  echo "aireply: added :$INPUT_REACTION: reaction on issue" || \
   echo "aireply: failed to add reaction"
 
-# ── 5. Post comment reply ──
+# ── 4. Post comment reply ──
 COMMENT_BODY="$INPUT_COMMENT
 
 <sub>Replied by [x-cmd-action/agent](https://github.com/x-cmd-action/agent) issue-aireply</sub>"
 
 gh issue comment "$ISSUE_NUM" --body "$COMMENT_BODY" && \
-  echo "aireply: posted reply comment"
+  echo "aireply: posted reply"
 
 echo "aireply: done"
