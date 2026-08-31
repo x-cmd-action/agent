@@ -33,12 +33,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUM: ${{ github.event.issue.number }}
+          COMMENT_ID: ${{ github.event.comment.id }}
           ISSUE_BODY: ${{ github.event.issue.body }}
           COMMENT_BODY: ${{ github.event.comment.body }}
           # Allow workflow_dispatch override; defaults below
           INPUT_TRIGGER: '@x'
           INPUT_REACTION: 'eyes'
-          INPUT_COMMENT: '👀'
+          INPUT_COMMENT: '👀 on it'
         run: |
           # Use GITHUB_WORKSPACE (where checkout put the repo).
           if command -v cygpath >/dev/null 2>&1; then
