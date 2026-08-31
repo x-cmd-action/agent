@@ -1,0 +1,6 @@
+/*                              export-ignore
+/.gitattributes                  export-ignore
+/.github                         export-ignore
+/*.md                            export-ignore
+/lib                             export-ignore
+/action.yml                      export-ignore

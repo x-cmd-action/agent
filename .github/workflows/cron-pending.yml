@@ -1,0 +1,30 @@
+name: cron-pending-scan
+
+# Experiment: cron every 15 min + concurrency: single (default).
+# Hypothesis: only 1 in-flight, last pending wins.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ai-bot
+  cancel-in-progress: false
+  # queue omitted → defaults to 'single'
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    steps:
+      - name: log run identity
+        run: |
+          echo "=== run ${{ github.run_id }} (attempt ${{ github.run_attempt }}) ==="
+          echo "event=${{ github.event_name }}"
+          echo "started_at=${{ github.run_started_at }}"
+          date +%s%N > /tmp/start
+          echo "Sleeping 30s..."
+          sleep 30
+          date +%s%N > /tmp/end
+          S=$(cat /tmp/start); E=$(cat /tmp/end)
+          echo "elapsed_ms=$(( (E - S) / 1000000 ))"

@@ -1,0 +1,21 @@
+name: burst
+
+# Experiment: trigger N runs in burst, observe queue.
+# We trigger from CLI: gh workflow run burst.yml (multiple times).
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ai-bot
+  cancel-in-progress: false
+
+jobs:
+  burst:
+    runs-on: ubuntu-latest
+    steps:
+      - name: log
+        run: |
+          echo "=== burst run ${{ github.run_id }} ==="
+          echo "started_at=${{ github.run_started_at }}"
+          sleep 60
