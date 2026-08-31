@@ -1,0 +1,48 @@
+name: issue-aireply
+
+# Triggers when someone @s the bot (default: @x) in an issue or comment.
+# Replies with a configurable emoji.
+# Concurrency: single in-flight + single pending (queue: single default).
+# Bots are filtered out to prevent self-trigger loops.
+
+on:
+  issue_comment:
+    types: [created]
+  issues:
+    types: [opened]
+
+concurrency:
+  group: aireply-bot
+  cancel-in-progress: false
+  # queue omitted → defaults to 'single' (last pending wins)
+
+jobs:
+  reply:
+    # Only human authors; bots (including this workflow's own bot account) are ignored.
+    if: github.event.sender.type != 'Bot'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: checkout agent repo
+        uses: actions/checkout@v4
+
+      - name: aireply
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUM: ${{ github.event.issue.number }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          # Allow workflow_dispatch override; defaults below
+          INPUT_TRIGGER: '@x'
+          INPUT_REACTION: 'eyes'
+          INPUT_COMMENT: '👀'
+        run: |
+          if command -v cygpath >/dev/null 2>&1; then
+            ACTION_PATH=$(cygpath -u "$GITHUB_ACTION_PATH")
+          else
+            ACTION_PATH="$GITHUB_ACTION_PATH"
+          fi
+          bash "$ACTION_PATH/lib/aireply.sh"
